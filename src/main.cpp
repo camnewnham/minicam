@@ -12,11 +12,6 @@
 #include "soc/rtc_cntl_reg.h"  //disable brownout problems
 #include "esp_http_server.h"
 
-#define CREDENTIAL_RESET_PIN 16 // Reset if LOW at boot
-#define LED_PIN 33
-
-WiFiManager wifiManager; // WiFi AP controller
-
 #define PART_BOUNDARY "123456789000000000000987654321"
 
 // This project was tested with the AI Thinker Model
@@ -116,17 +111,25 @@ void startCameraServer(){
     .user_ctx  = NULL
   };
   
-  //Serial.printf("Starting web server on port: '%d'\n", config.server_port);
+  Serial.printf("Starting web server on port: '%d'\n", config.server_port);
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
+    Serial.printf("Started web server\n");
     httpd_register_uri_handler(stream_httpd, &index_uri);
+    Serial.printf("Reg handler server\n");
+  }
+  else {
+    Serial.printf("Failed? to start web server\n");
   }
 }
 
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
- 
+  //WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+  WiFi.mode(WIFI_STA);
   Serial.begin(115200);
-  Serial.setDebugOutput(false);
+  while (!Serial) ;
+
+  Serial.printf("Hello\n");
+  //Serial.setDebugOutput(false);
   
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -150,36 +153,35 @@ void setup() {
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG; 
   
+  Serial.printf("psramFound?\n");
   if(psramFound()){
-    config.frame_size = FRAMESIZE_UXGA;
-    config.jpeg_quality = 1;
-    config.fb_count = 2;
+    config.frame_size = FRAMESIZE_SVGA;
+    config.jpeg_quality = 10;
+    config.fb_count = 3;
   } else {
     config.frame_size = FRAMESIZE_SVGA;
-    config.jpeg_quality = 1;
-    config.fb_count = 2;
+    config.jpeg_quality = 10;
+    config.fb_count = 3;
   }
-  
+    Serial.printf("esp_camera_init?\n");
+
   // Camera init
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
     Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
-  
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(CREDENTIAL_RESET_PIN, INPUT_PULLUP);
-  digitalWrite(LED_PIN, LOW);
 
-  if (digitalRead(CREDENTIAL_RESET_PIN) == LOW) {
-    wifiManager.startConfigPortal("ESP32-CAM-RESET");
-  }
-  else {
-    wifiManager.autoConnect("ESP32-CAM");
-  }
+    Serial.printf("WiFiManager...\n");
+  WiFiManager wm;
+  wm.setConfigPortalTimeout(600);
+  wm.autoConnect("ESP32-CAM");
+    Serial.printf("begin...\n");
 
-  digitalWrite(LED_PIN, HIGH);
+  WiFi.mode(WIFI_MODE_STA);
+  WiFi.begin();
 
+  Serial.printf("startCameraServer...\n");
   // Start streaming web server
   startCameraServer();
 }
